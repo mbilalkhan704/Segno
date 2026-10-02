@@ -138,8 +138,22 @@ class LoadingMixin:
                 self.email_summary_label.config(
                     text=f"{valid} of {n} email addresses are valid - {n - valid} empty or invalid" + extra,
                     style="Warn.TLabel")
+        # Controls that only make sense in some situations are shown only then.
+        any_problem = any(not i.sendable for i in infos)
+        any_sent = any(i.email_ok and self.sent_log.is_sent(i.key, i.email) for i in infos)
+        self._toggle_widget(self.next_problem_btn, any_problem, side="left", padx=(6, 0))
+        self._toggle_widget(self.include_sent_toggle, any_sent, anchor="w", pady=(0, 6),
+                            before=self.send_summary_label)
         if hasattr(self, "_update_send_summary"):
             self._update_send_summary()
+
+    @staticmethod
+    def _toggle_widget(widget, show, **pack_options):
+        shown = bool(widget.winfo_manager())
+        if show and not shown:
+            widget.pack(**pack_options)
+        elif not show and shown:
+            widget.pack_forget()
 
     def _next_problem_row(self):
         """Scroll to the next row that can't be sent (without touching the selection)."""
