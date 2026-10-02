@@ -3,10 +3,10 @@ import os, tempfile, threading, unittest, smtplib, email
 
 os.environ["CM_APPDATA_DIR"] = tempfile.mkdtemp()
 
-from cm_utils import (name_to_filename, cert_stem, validate_email, CertIndex, analyze_rows,
+from cm_utils import (attachment_filename, name_to_filename, cert_stem, validate_email, CertIndex, analyze_rows,
                       read_tabular_file, protect_secret, unprotect_secret, guess_column)
 from cm_sentlog import SentLog
-from cm_richtext import (make_run, substitute_name, runs_to_html, runs_to_plain, normalize_runs,
+from cm_richtext import (apply_casing, apply_name_tokens, make_run, substitute_name, runs_to_html, runs_to_plain, normalize_runs,
                          find_unknown_placeholders, normalize_url)
 from cm_mail import render_email, build_message, classify_exception, run_batch, validate_smtp_credentials
 from cm_constants import CERT_ID_COLUMN
@@ -90,6 +90,14 @@ class Files(unittest.TestCase):
         h, r = read_tabular_file(x); self.assertEqual(h, ["Name", "Email"]); self.assertEqual(len(r), 1)
         self.assertEqual(guess_column(["Full Name", "E-mail"], ("email", "e-mail")), "E-mail")
 
+    def test_attachment_filename(self):
+        self.assertEqual(attachment_filename("/x/Muhammad_Bilal_Khan_4K9P2Q.pdf", "4K9P2Q"), "Muhammad_Bilal_Khan.pdf")
+        self.assertEqual(attachment_filename("/x/Sara_Noor_004917.pdf", "4917"), "Sara_Noor.pdf")      # lost leading zeros
+        self.assertEqual(attachment_filename("/x/Ali_Khan_ab12cd.PNG", "AB12CD"), "Ali_Khan.PNG")      # case-insensitive
+        self.assertEqual(attachment_filename("/x/Ali_Khan.pdf", ""), "Ali_Khan.pdf")                  # no ID -> unchanged
+        self.assertEqual(attachment_filename("/x/Ali_Khan_ZZ.pdf", "AB12CD"), "Ali_Khan_ZZ.pdf")      # tail isn't the ID
+        self.assertEqual(attachment_filename("/x/_AB12CD.pdf", "AB12CD"), "_AB12CD.pdf")              # never empty
+
     def test_secret_roundtrip(self):
         self.assertEqual(unprotect_secret(protect_secret("abcd efgh")), "abcd efgh")
         self.assertEqual(unprotect_secret("garbage"), "")
@@ -127,6 +135,19 @@ class RichText(unittest.TestCase):
         sub = substitute_name([make_run("Dear {name}", font="Verdana")], "Ali")
         self.assertEqual((sub[0]["text"], sub[0]["font"]), ("Dear Ali", "Verdana"))
         self.assertEqual(normalize_runs([{"text": "old saved run", "b": False}])[0]["font"], None)  # old data
+
+    def test_casing_variants(self):
+        self.assertEqual([apply_casing("ali RAZA o'neil", m) for m in (None, "upper", "lower", "title", "sentence")],
+                         ["ali RAZA o'neil", "ALI RAZA O'NEIL", "ali raza o'neil", "Ali Raza O'Neil", "Ali raza o'neil"])
+        self.assertEqual(apply_name_tokens("Hi {name}, {NAME:Upper} / {name:title}!", "ali raza"),
+                         "Hi ali raza, ALI RAZA / Ali Raza!")
+        runs = [make_run("Dear {name:ti"), make_run("tle}", b=True), make_run(" ({name:upper})")]
+        out = substitute_name(runs, "ali raza")
+        self.assertEqual("".join(r["text"] for r in out), "Dear Ali Raza (ALI RAZA)")
+        self.assertEqual(find_unknown_placeholders("{name} {name:title} {name:UPPER} {name:fancy} {nme}"),
+                         ["{name:fancy}", "{nme}"])
+        subj, _p, html = render_email("Certificate for {name:upper}", [make_run("Hello {name:title}")], [], "ali raza")
+        self.assertEqual(subj, "Certificate for ALI RAZA"); self.assertIn("Hello Ali Raza", html)
 
     def test_misc(self):
         self.assertEqual(find_unknown_placeholders("Hi {name} {Nmae}"), ["{Nmae}"])
@@ -194,6 +215,15 @@ class Mail(unittest.TestCase):
     def test_oversize_and_missing_file(self):
         self.jobs[0]["cert_path"] = "/nonexistent.pdf"
         kinds = self.run_it(); self.assertEqual(kinds.count("failed"), 1); self.assertEqual(kinds.count("sent"), 3)
+
+    def test_attachment_sent_under_clean_name(self):
+        d = tempfile.mkdtemp(); p = os.path.join(d, "Ali_Khan_AB12CD.pdf"); write_bytes(p)
+        job = {"row": 1, "name": "Ali Khan", "email": "a@x.com", "cert_path": p,
+               "attach_name": attachment_filename(p, "AB12CD")}
+        run_batch([job], self.cfg, self.render, self.events.append, threading.Event(), 0, FakeSMTP)
+        sent = FakeSMTP.instances[0].sent[0]
+        self.assertEqual([part.get_filename() for part in sent.iter_attachments()], ["Ali_Khan.pdf"])
+        self.assertTrue(os.path.exists(p))                                            # file on disk untouched
 
     def test_classify(self):
         self.assertEqual(classify_exception(smtplib.SMTPServerDisconnected("x"))[0], "connection")
