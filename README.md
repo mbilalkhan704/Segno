@@ -3,6 +3,8 @@
 Reads the CSV/Excel file Meraki used, finds each person's generated certificate
 (`Name_CertificateID.pdf/png/jpg`) in a folder, and emails it through Gmail.
 
+Source: https://github.com/mbilalkhan704/Segno - MIT licensed. Help -> About has the links.
+
 ## Setup
 1. `pip install pillow openpyxl tkinterdnd2` (tkinterdnd2 is optional - browse-only without it).
 2. Copy your Meraki `mck_themes.py` over `cm_themes.py` (same 12 themes), and copy
@@ -17,6 +19,15 @@ Reads the CSV/Excel file Meraki used, finds each person's generated certificate
 Settings -> "Edit default footer" opens the **Footer** tab: editor on top, live preview below,
 `<` `>` to move between saved footers (`>` on the last one starts a single new unsaved footer),
 Save / Revert / Delete, and "Use this footer". The Compose tab has a picker for the footer to send.
+
+## Name casing
+In the Compose tab, **Insert name ▾** (next to the subject and in the message toolbar) offers: as in file `{name}`,
+`{name:upper}`, `{name:title}`, `{name:lower}`, `{name:sentence}`. Use a different casing in different places
+(e.g. UPPERCASE in the subject, Title Case in the greeting).
+
+## Attachments
+Each email's attachment is named without the Certificate ID (`Ali_Khan_4K9P2Q.pdf` is sent as `Ali_Khan.pdf`).
+Your files on disk are never renamed.
 
 ## Fonts
 The editors (Compose message and Footer tab) offer the fonts Gmail itself renders: Arial, Arial Black,
