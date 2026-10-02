@@ -38,8 +38,9 @@ class BuildUiMixin:
                                       cursor="hand2", font=("Segoe UI", 11, "bold"),
                                       command=self._open_settings_dialog)
         self.settings_btn.pack(side="right", padx=18, pady=10)
-        self.issues_btn = tk.Button(self.toolbar, text="\u2753 Help", relief="flat", bd=0, padx=14, pady=6,
-                                    cursor="hand2", font=("Segoe UI", 10, "bold"), command=self._open_github_issues)
+        self.issues_btn = tk.Button(self.toolbar, text="\u2753 Help \u25be", relief="flat", bd=0, padx=14, pady=6,
+                                    cursor="hand2", font=("Segoe UI", 10, "bold"), command=self._show_help_menu)
+        self._build_help_menu()                      # About / View source code / Report an issue
         self.issues_btn.pack(side="right", padx=(0, 4), pady=10)
         self.how_to_use_btn = tk.Button(self.toolbar, text="\U0001F4D6 How to Use", relief="flat", bd=0, padx=14,
                                         pady=6, cursor="hand2", font=("Segoe UI", 10, "bold"),
@@ -51,6 +52,13 @@ class BuildUiMixin:
         self.footer_bar.pack(side="bottom", fill="x")
         self.footer_note = tk.Label(self.footer_bar, text=APP_CREDIT_TEXT, font=("Segoe UI", 12, "italic"))
         self.footer_note.pack(side="right", padx=14, pady=4)
+        # The credit line is a link to the project's repository.
+        self.footer_note.configure(cursor="hand2")
+        self.footer_note.bind("<Button-1>", self._open_repo)
+        self.footer_note.bind("<Enter>", lambda e: self.footer_note.configure(
+            fg=self._current_theme_colors["accent"], font=("Segoe UI", 12, "italic underline")))
+        self.footer_note.bind("<Leave>", lambda e: self.footer_note.configure(
+            fg=self._current_theme_colors["subtle_text"], font=("Segoe UI", 12, "italic")))
 
         self.main_root_frame = ttk.Frame(self, padding=10)      # packed by _reveal_main_ui
         root = self.main_root_frame
@@ -100,7 +108,7 @@ class BuildUiMixin:
         row = ttk.Frame(box)
         row.pack(fill="x", pady=(8, 0))
         ttk.Button(row, text="Re-scan folder", command=self._rescan_cert_folder).pack(side="left")
-        ttk.Button(row, text="Next problem row \u25b8", command=self._next_problem_row).pack(side="left", padx=(6, 0))
+        self.next_problem_btn = ttk.Button(row, text="Next problem row \u25b8", command=self._next_problem_row)
         ttk.Label(box, style="Subtle.TLabel", wraplength=340, justify="left",
                   text="Files are matched the way Meraki names them: Name_CertificateID "
                        "(.pdf, .png, .jpg).").pack(anchor="w", pady=(8, 0))
@@ -111,10 +119,11 @@ class BuildUiMixin:
                                              justify="left", cursor="hand2")
         self.sender_status_label.pack(anchor="w", pady=(0, 8))
         self.sender_status_label.bind("<Button-1>", lambda e: self._open_settings_dialog())
-        self._make_toggle(box, "Include already-sent rows", self.include_sent,
-                          on_toggle=self._recompute_analysis).pack(anchor="w", pady=(0, 6))
         self.send_summary_label = ttk.Label(box, text="", style="Subtle.TLabel", wraplength=340, justify="left")
         self.send_summary_label.pack(anchor="w", pady=(0, 8))
+        # Only shown when some rows have actually been sent before (see _update_check_summary).
+        self.include_sent_toggle = self._make_toggle(box, "Include already-sent rows", self.include_sent,
+                                                     on_toggle=self._recompute_analysis)
         self.test_btn = ttk.Button(box, text="Send test to myself", command=self._on_test_send_clicked)
         self.test_btn.pack(fill="x", pady=(0, 6))
         self.send_btn = ttk.Button(box, text="Send certificates", command=self._on_send_clicked)
