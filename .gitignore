@@ -1,2 +1,10 @@
-*.exe
 __pycache__/
+*.pyc
+build/
+dist/
+*.spec
+# runtime data lives in %LOCALAPPDATA%\<APP_NAME>\ and must never be committed
+settings.json
+sent_log.json
+# never commit real recipient lists or generated certificates
+certificates/
