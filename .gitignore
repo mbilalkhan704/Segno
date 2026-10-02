@@ -8,3 +8,5 @@ settings.json
 sent_log.json
 # never commit real recipient lists or generated certificates
 certificates/
+Segno/
+*.exe
