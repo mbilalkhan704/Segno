@@ -16,7 +16,7 @@ from cm_constants import (
     MAX_CONSECUTIVE_CONNECTION_FAILURES, EMAIL_BASE_FONT_PX, EMAIL_FONT_FAMILY_CSS,
 )
 from cm_richtext import (
-    NAME_TOKEN_RE, substitute_name, runs_to_html, runs_to_plain, has_visible_text,
+    apply_name_tokens, substitute_name, runs_to_html, runs_to_plain, has_visible_text,
 )
 
 FATAL_KINDS = ("auth", "quota")
@@ -30,7 +30,7 @@ def render_email(subject_template, message_runs, footer_runs, name):
     """Return (subject, plain_text, html) for one recipient. {name} is
     substituted everywhere; the name is HTML-escaped automatically because
     substitution happens before HTML rendering."""
-    subject = NAME_TOKEN_RE.sub(lambda m: name, subject_template or "")
+    subject = apply_name_tokens(subject_template or "", name)
     subject = re.sub(r"[\r\n]+", " ", subject).strip()
 
     msg_runs = substitute_name(message_runs, name)
@@ -46,7 +46,8 @@ def render_email(subject_template, message_runs, footer_runs, name):
     return subject, plain, html_doc
 
 
-def build_message(sender_email, sender_name, to_email, subject, plain, html_body, attachment_path=None):
+def build_message(sender_email, sender_name, to_email, subject, plain, html_body, attachment_path=None,
+                  attachment_name=None):
     msg = EmailMessage()
     msg["From"] = formataddr((sender_name, sender_email)) if sender_name else sender_email
     msg["To"] = to_email
@@ -60,7 +61,7 @@ def build_message(sender_email, sender_name, to_email, subject, plain, html_body
         with open(attachment_path, "rb") as f:
             data = f.read()
         msg.add_attachment(data, maintype=maintype, subtype=subtype,
-                           filename=os.path.basename(attachment_path))
+                           filename=attachment_name or os.path.basename(attachment_path))
     return msg
 
 
@@ -224,7 +225,7 @@ def run_batch(jobs, cfg, render, emit, cancel, delay, smtp_factory=None):
                 subject, plain, html_body = render(j["name"])
                 subject = (j.get("subject_prefix") or "") + subject
                 msg = build_message(cfg["email"], cfg.get("sender_name", ""), j["email"],
-                                    subject, plain, html_body, j.get("cert_path"))
+                                    subject, plain, html_body, j.get("cert_path"), j.get("attach_name"))
                 sender.send(msg)
             except Exception as exc:
                 kind, text = classify_exception(exc)
