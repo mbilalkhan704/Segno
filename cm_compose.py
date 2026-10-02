@@ -4,7 +4,7 @@ picker (which saved footer goes under this send) with a preview."""
 import tkinter as tk
 from tkinter import ttk
 
-from cm_richtext import RichTextEditor, runs_text
+from cm_richtext import RichTextEditor, runs_text, popup_name_menu
 
 
 def footer_label(index, runs):
@@ -16,12 +16,20 @@ def footer_label(index, runs):
 class ComposeMixin:
     def _build_compose_view(self, parent):
         ttk.Label(parent, text="Subject", font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        ttk.Entry(parent, textvariable=self.subject_var).pack(fill="x", pady=(4, 10))
+        subject_row = ttk.Frame(parent)
+        subject_row.pack(fill="x", pady=(4, 10))
+        self.subject_entry = ttk.Entry(subject_row, textvariable=self.subject_var)
+        self.subject_entry.pack(side="left", fill="x", expand=True)
+        name_btn = ttk.Button(subject_row, text="Insert name \u25be")
+        name_btn.pack(side="left", padx=(6, 0))
+        name_btn.config(command=lambda: popup_name_menu(name_btn, self._insert_in_subject))
 
         ttk.Label(parent, text="Message", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         ttk.Label(parent, style="Subtle.TLabel", wraplength=640, justify="left",
-                  text="Click \"Insert name\" (or type {name}) to put each person's name in the subject "
-                       "or message. Subject and message are written fresh for every send.").pack(anchor="w", pady=(0, 4))
+                  text="Use \"Insert name\" to put each person's name in the subject or message - pick the "
+                       "casing you want (as in the file, UPPERCASE, Title Case...). They appear as {name}, "
+                       "{name:title}, etc. Subject and message are written fresh for every send."
+                  ).pack(anchor="w", pady=(0, 4))
         self.message_editor = RichTextEditor(parent, lambda: self._current_theme_colors,
                                              show_insert_name=True, height=12, family="Arial")
         self.message_editor.pack(fill="both", expand=True)
@@ -39,6 +47,10 @@ class ComposeMixin:
         self.footer_preview.pack(fill="x")
         self._rich_editors.append(self.footer_preview)
         self._refresh_footer_preview()
+
+    def _insert_in_subject(self, token):
+        self.subject_entry.insert("insert", token)
+        self.subject_entry.focus_set()
 
     def _on_footer_combo(self):
         self.active_footer = self.footer_combo.current() - 1
