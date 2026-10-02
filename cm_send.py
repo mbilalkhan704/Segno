@@ -12,6 +12,7 @@ from tkinter import ttk, messagebox, filedialog
 from cm_constants import DAILY_LIMIT_FREE_GMAIL
 from cm_mail import render_email, run_batch
 from cm_richtext import find_unknown_placeholders, has_visible_text, runs_text
+from cm_utils import attachment_filename
 
 RETRYABLE_KINDS = ("temporary", "connection", "other", "sender")
 
@@ -43,7 +44,8 @@ class SendMixin:
                 counts["already sent"] += 1
             else:
                 jobs.append({"row": info.index, "name": info.name, "email": info.email,
-                             "cert_path": info.cert_path, "key": info.key})
+                             "cert_path": info.cert_path, "key": info.key,
+                             "attach_name": attachment_filename(info.cert_path, info.cert_id)})
         return jobs, counts
 
     def _update_send_summary(self):
@@ -141,7 +143,8 @@ class SendMixin:
         info = next((i for i in self.row_infos if i.sendable), None)
         name = info.name if info else "Sample Name"
         job = {"row": None, "name": name, "email": self.sender_email.get(), "test": True,
-               "cert_path": info.cert_path if info else None, "subject_prefix": "[TEST] "}
+               "cert_path": info.cert_path if info else None, "subject_prefix": "[TEST] ",
+               "attach_name": attachment_filename(info.cert_path, info.cert_id) if info else None}
         extra = (f"using {name}'s certificate as the attachment" if info else
                  "without an attachment (no row is ready yet)")
         if not messagebox.askyesno("Send test", f"Send a test email to yourself ({job['email']}), {extra}?"):
@@ -244,6 +247,7 @@ class SendMixin:
             text=f"Done: {len(res['sent'])} sent, {len(res['failed'])} failed, {len(res['skipped'])} not attempted.")
         self._refresh_row_selection_tags()
         self._refresh_grid_status()
+        self._update_check_summary()                # a send changes who counts as already sent
         if self._send_test:
             if res["sent"]:
                 messagebox.showinfo("Test sent", f"Test email sent to {self.sender_email.get()}.\n"
@@ -310,10 +314,9 @@ class SendMixin:
                 subject, runs = self._send_subject
                 self._start_send(retry, subject, runs)
 
-        retry_btn = ttk.Button(btns, text=f"Retry failed & remaining ({len(retry)})", command=do_retry)
-        retry_btn.pack(side="left", padx=(0, 6))
-        if not retry:
-            retry_btn.config(state="disabled")
+        if retry:                                   # only offered when there is something to retry
+            ttk.Button(btns, text=f"Retry failed & remaining ({len(retry)})", command=do_retry
+                       ).pack(side="left", padx=(0, 6))
 
         def export():
             path = filedialog.asksaveasfilename(parent=dialog, defaultextension=".csv",
