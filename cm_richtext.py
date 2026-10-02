@@ -22,8 +22,30 @@ from cm_constants import (EMAIL_BASE_FONT_PX, FONT_SIZES_PX, NAME_PLACEHOLDER,
                           EMAIL_FONTS, DEFAULT_EMAIL_FONT)
 
 BASE = EMAIL_BASE_FONT_PX
-NAME_TOKEN_RE = re.compile(re.escape(NAME_PLACEHOLDER), re.IGNORECASE)
+# {name} as in the file, or {name:upper} {name:lower} {name:title} {name:sentence}
+NAME_TOKEN_RE = re.compile(r"\{name(?::(upper|lower|title|sentence))?\}", re.IGNORECASE)
 _PLACEHOLDER_RE = re.compile(r"\{[^{}]*\}")
+NAME_VARIANTS = [("As in file", "{name}"), ("UPPERCASE", "{name:upper}"), ("Title Case", "{name:title}"),
+                 ("lowercase", "{name:lower}"), ("Sentence case", "{name:sentence}")]
+
+
+def apply_casing(value, mode):
+    """Same behaviour as Meraki's casing options (title() / capitalize())."""
+    mode = (mode or "").lower()
+    if mode == "upper":
+        return value.upper()
+    if mode == "lower":
+        return value.lower()
+    if mode == "title":
+        return value.title()
+    if mode == "sentence":
+        return value.capitalize()
+    return value
+
+
+def apply_name_tokens(text, value):
+    """Replace every {name...} token in plain text (used for the subject)."""
+    return NAME_TOKEN_RE.sub(lambda m: apply_casing(value, m.group(1)), text or "")
 
 
 # ---------------------------------------------------------------------------
@@ -75,8 +97,7 @@ def has_visible_text(runs):
 
 def find_unknown_placeholders(text):
     """{tokens} other than {name} - almost certainly typos."""
-    return sorted({t for t in _PLACEHOLDER_RE.findall(text)
-                   if t.lower() != NAME_PLACEHOLDER})
+    return sorted({t for t in _PLACEHOLDER_RE.findall(text) if not NAME_TOKEN_RE.fullmatch(t)})
 
 
 def substitute_name(runs, value):
@@ -102,7 +123,7 @@ def substitute_name(runs, value):
 
     for m in NAME_TOKEN_RE.finditer(text):
         emit(pos, m.start())
-        out.append(dict(styles[m.start()], text=value))
+        out.append(dict(styles[m.start()], text=apply_casing(value, m.group(1))))
         pos = m.end()
     emit(pos, len(text))
     return normalize_runs(out)
@@ -141,6 +162,18 @@ def runs_to_plain(runs):
             t = f"{t} ({href})"
         parts.append(t)
     return "".join(parts)
+
+
+def popup_name_menu(widget, insert_token, sample="ali raza"):
+    """Drop-down under `widget` listing the casing variants, each previewed on a sample."""
+    menu = tk.Menu(widget, tearoff=0)
+    for label, token in NAME_VARIANTS:
+        menu.add_command(label=f"{label}    \u2192  {apply_name_tokens(token, sample)}",
+                         command=lambda t=token: insert_token(t))
+    try:
+        menu.tk_popup(widget.winfo_rootx(), widget.winfo_rooty() + widget.winfo_height())
+    finally:
+        menu.grab_release()
 
 
 def normalize_url(url):
@@ -270,7 +303,7 @@ class RichTextEditor(ttk.Frame):
             self.size_combo.bind("<<ComboboxSelected>>", lambda e: self.set_size(int(self.size_var.get())))
             self._make_tool("link", "Link", self.add_link, tkfont.Font(family=self.FAMILY, size=9, weight="bold"))
             if show_insert_name:
-                self._make_tool("name", "Insert name", self.insert_name,
+                self._make_tool("name", "Insert name \u25be", self._name_menu,
                                 tkfont.Font(family=self.FAMILY, size=9, weight="bold"), right=True)
 
         body = tk.Frame(self)
@@ -483,9 +516,15 @@ class RichTextEditor(ttk.Frame):
         self.text.tag_add(self._new_link_tag(safe), *sel)
         self.text.focus_set()
 
-    def insert_name(self):
-        self.text.insert("insert", NAME_PLACEHOLDER)
+    def _name_menu(self):
+        popup_name_menu(self._tool_btns["name"], self.insert_token)
+
+    def insert_token(self, token):
+        self.text.insert("insert", token)
         self.text.focus_set()
+
+    def insert_name(self):
+        self.insert_token(NAME_PLACEHOLDER)
 
     # ---- model <-> widget ----------------------------------------------------
     def get_runs(self):
