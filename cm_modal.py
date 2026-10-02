@@ -36,26 +36,49 @@ class ModalMixin:
                 self.geometry(f"{sw}x{sh}+0+0")
 
     def _center_dialog(self, dialog, width=None, height=None):
+        """Centre a dialog. Without an explicit size only the POSITION is set, so the dialog keeps
+        auto-sizing to its content (a longer message can't push buttons out of view)."""
         dialog.update_idletasks()
         w = width or dialog.winfo_reqwidth()
         h = height or dialog.winfo_reqheight()
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-        dialog.geometry(f"{w}x{h}+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 3)}")
+        pos = f"+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 3)}"
+        dialog.geometry(pos if (width is None and height is None) else f"{w}x{h}{pos}")
+        self._reveal_dialog(dialog)                # only now does it become visible - already in place
 
     def _new_dialog(self, title, resizable=False):
         """A themed, transient, grab-holding Toplevel registered for attention."""
         theme = self._current_theme_colors
         dialog = tk.Toplevel(self)
+        dialog.withdraw()          # stay invisible while the content is built and positioned (no flash)
         dialog.title(title)
         dialog.configure(bg=theme["dialog_bg"])
         dialog.resizable(resizable, resizable)
         dialog.transient(self)
+        self._register_modal_dialog(dialog)
+        # _center_dialog() reveals it. Safety net in case a caller never calls it: a timer (not an idle
+        # callback, which update_idletasks() would run too early) shows it a moment later.
+        dialog.after(250, lambda: self._reveal_dialog(dialog))
+        return dialog
+
+    def _reveal_dialog(self, dialog):
+        """Show a finished dialog (already positioned) and make it modal."""
         try:
-            dialog.grab_set()
+            if not dialog.winfo_exists() or dialog.state() != "withdrawn":
+                return
+            dialog.deiconify()
+            dialog.lift()
+            self._grab_when_visible(dialog)
+            dialog.focus_set()
         except tk.TclError:
             pass
-        self._register_modal_dialog(dialog)
-        return dialog
+
+    def _grab_when_visible(self, dialog, tries=20):
+        try:
+            dialog.grab_set()
+        except tk.TclError:                       # not mapped yet - retry shortly
+            if tries > 0 and dialog.winfo_exists():
+                dialog.after(25, lambda: self._grab_when_visible(dialog, tries - 1))
 
     # ---- attention system -------------------------------------------------------
     def _user_is_off_dialog(self, target):
