@@ -18,6 +18,11 @@ from cm_constants import (
 )
 
 
+def _norm_id(s: str) -> str:
+    s = s.strip().lower()
+    return (s.lstrip("0") or "0") if s.isdigit() else s
+
+
 # ---------------------------------------------------------------------------
 # Filenames - verbatim from Meraki's mck_utils so matching stays consistent
 # ---------------------------------------------------------------------------
@@ -40,6 +45,19 @@ def cert_stem(name: str, cert_id: str) -> str:
     base = name_to_filename(name)
     cid = (cert_id or "").strip()
     return f"{base}_{sanitize_filename(cid)}" if cid else base
+
+
+def attachment_filename(path: str, cert_id: str) -> str:
+    """Name the attachment is sent under: the file's name minus the trailing _CertificateID
+    ('Ali_Khan_4K9P2Q.pdf' -> 'Ali_Khan.pdf'). Only affects the email - never the file on disk."""
+    base = os.path.basename(path)
+    stem, ext = os.path.splitext(base)
+    cid = (cert_id or "").strip()
+    if cid and "_" in stem:
+        head, _, tail = stem.rpartition("_")
+        if head and _norm_id(tail) == _norm_id(sanitize_filename(cid)):
+            return head + ext
+    return base
 
 
 def make_row_key(name: str, cert_id: str) -> str:
@@ -183,11 +201,6 @@ def validate_email(raw):
 # Certificate folder index + matching
 # ---------------------------------------------------------------------------
 _EXT_RANK = {ext: i for i, ext in enumerate(CERT_EXTENSIONS)}
-
-
-def _norm_id(s: str) -> str:
-    s = s.strip().lower()
-    return (s.lstrip("0") or "0") if s.isdigit() else s
 
 
 class CertIndex:
