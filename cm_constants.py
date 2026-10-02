@@ -13,13 +13,17 @@ from cm_themes import THEMES as themes_dictionary
 # (Changing it later starts a fresh settings folder under the new name.)
 # ---------------------------------------------------------------------------
 APP_NAME = "Segno"
-APP_SUBTITLE = "BULK CERTIFICATE MAILER"
-APP_FULL_TITLE = f"{APP_NAME} - Bulk Certificate Mailer"
+APP_SUBTITLE = "Recognize. Certify. Deliver."
+APP_FULL_TITLE = f"{APP_NAME} - {APP_SUBTITLE}"
 APP_CREDIT_TEXT = "Developed by Muhammad Bilal Khan for ORIC, UoK"
 SPLASH_CREDIT_TEXT = (f"{APP_NAME} by Office of Research, Innovation and "
                       f"Commercialization, University of Karachi")
 APP_USER_MODEL_ID = "oric." + re.sub(r"[^a-z0-9]", "", APP_NAME.lower()) + ".certmailer.1.0"
-GITHUB_ISSUES_URL = "https://github.com/mbilalkhan704/bulk-certificates-generator-ORIC-UOK/issues"
+GITHUB_REPO_URL = "https://github.com/mbilalkhan704/Segno"
+GITHUB_ISSUES_URL = GITHUB_REPO_URL + "/issues"
+APP_VERSION = "1.0.0"
+LICENSE_NAME = "MIT License"
+COPYRIGHT_TEXT = "\u00a9 2026 Muhammad Bilal Khan"
 APP_PASSWORD_URL = "https://myaccount.google.com/apppasswords"
 
 
