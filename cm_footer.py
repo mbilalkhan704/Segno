@@ -22,14 +22,16 @@ class FooterMixin:
     def _build_footer_view(self, parent):
         nav = ttk.Frame(parent)
         nav.pack(fill="x", pady=(0, 8))
+        nav.columnconfigure(0, minsize=44)
+        nav.columnconfigure(2, minsize=44)
         self.fv_prev_btn = ttk.Button(nav, text="\u25c0", width=3, command=self._footer_prev)
-        self.fv_prev_btn.pack(side="left")
+        self.fv_prev_btn.grid(row=0, column=0)
         self.fv_title = ttk.Label(nav, text="", font=("Segoe UI", 12, "bold"), width=26, anchor="center")
-        self.fv_title.pack(side="left", padx=6)
+        self.fv_title.grid(row=0, column=1, padx=6)
         self.fv_next_btn = ttk.Button(nav, text="\u25b6", width=3, command=self._footer_next)
-        self.fv_next_btn.pack(side="left")
+        self.fv_next_btn.grid(row=0, column=2)
         self.fv_use_label = ttk.Label(nav, text="", style="Subtle.TLabel")
-        self.fv_use_label.pack(side="left", padx=(16, 0))
+        self.fv_use_label.grid(row=0, column=3, padx=(16, 0))
 
         ttk.Label(parent, text="Edit", font=("Segoe UI", 10, "bold")).pack(anchor="w")
         self.footer_editor = RichTextEditor(parent, lambda: self._current_theme_colors, height=7,
@@ -44,18 +46,19 @@ class FooterMixin:
         self.footer_live_preview.pack(fill="both", expand=True, pady=(4, 10))
         self._rich_editors.append(self.footer_live_preview)
 
+        # Action buttons: each is shown only when it applies (see _footer_update_header).
         row = ttk.Frame(parent)
         row.pack(fill="x")
         self.fv_save_btn = ttk.Button(row, text="Save", command=self._footer_save)
-        self.fv_save_btn.pack(side="left", padx=(0, 6))
+        self.fv_save_btn.grid(row=0, column=0, padx=(0, 6))
         self.fv_revert_btn = ttk.Button(row, text="Revert", command=self._footer_revert)
-        self.fv_revert_btn.pack(side="left", padx=(0, 6))
+        self.fv_revert_btn.grid(row=0, column=1, padx=(0, 6))
         self.fv_delete_btn = ttk.Button(row, text="Delete", style="Danger.TButton", command=self._footer_delete)
-        self.fv_delete_btn.pack(side="left", padx=(0, 6))
+        self.fv_delete_btn.grid(row=0, column=2, padx=(0, 6))
         self.fv_use_btn = ttk.Button(row, text="Use this footer", command=self._footer_use)
-        self.fv_use_btn.pack(side="left", padx=(0, 12))
+        self.fv_use_btn.grid(row=0, column=3, padx=(0, 12))
         self.fv_status = ttk.Label(row, text="", style="Subtle.TLabel")
-        self.fv_status.pack(side="left")
+        self.fv_status.grid(row=0, column=4, sticky="w")
 
     # ---- state helpers ---------------------------------------------------------------------------
     def _footer_is_dirty(self):
@@ -66,28 +69,44 @@ class FooterMixin:
             return False
         return runs != self._fv_baseline
 
+    @staticmethod
+    def _set_visible(widget, visible):
+        if visible:
+            widget.grid()
+        else:
+            widget.grid_remove()
+
     def _footer_update_header(self):
-        """Title, in-use badge, and button states for whatever footer is showing."""
+        """Title, in-use badge, and which buttons make sense right now:
+        Save/Revert only with unsaved edits; Delete only on a saved footer; 'Use this footer'
+        only for a saved, unedited footer that isn't already in use; arrows only where they lead somewhere."""
         n = len(self.footers)
         index = n if self._fv_new else self._fv_index
+        dirty = self._footer_is_dirty()
+        saved_view = not self._fv_new
+        in_use = saved_view and index == self.active_footer
         self.fv_title.config(text="New footer (not saved yet)" if self._fv_new else f"Footer {index + 1} of {n}")
-        self.fv_prev_btn.config(state="normal" if index > 0 else "disabled")
-        self.fv_next_btn.config(state="disabled" if self._fv_new else "normal")
         if self._fv_new:
             self.fv_use_label.config(text="", style="Subtle.TLabel")
-        elif index == self.active_footer:
+        elif in_use:
             self.fv_use_label.config(text="\u2714 In use for emails", style="Good.TLabel")
         else:
             self.fv_use_label.config(text="Not in use", style="Subtle.TLabel")
-        self.fv_use_btn.config(state="disabled" if (self._fv_new or index == self.active_footer) else "normal")
+        self._set_visible(self.fv_prev_btn, index > 0)
+        self._set_visible(self.fv_next_btn, saved_view)
+        self._set_visible(self.fv_save_btn, dirty)
+        self._set_visible(self.fv_revert_btn, dirty)
+        self._set_visible(self.fv_delete_btn, saved_view)
+        self._set_visible(self.fv_use_btn, saved_view and not in_use and not dirty)
 
     def _footer_changed(self):
-        """Editor edit/style change -> live preview + unsaved marker."""
+        """Editor edit/style change -> live preview, unsaved marker, and the buttons that now apply."""
         self.footer_live_preview.set_runs(self.footer_editor.get_runs())
         if self._footer_is_dirty():
             self.fv_status.config(text="\u25cf Unsaved changes", style="Warn.TLabel")
         else:
             self.fv_status.config(text="", style="Subtle.TLabel")
+        self._footer_update_header()
 
     def _footer_load(self, index):
         self._fv_new, self._fv_index = False, index
